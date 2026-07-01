@@ -41,6 +41,7 @@ html,body{margin:0;padding:0;background:var(--bg);}
 .meta{font-size:12px;color:var(--ink3);margin:5px 0 0;}
 .hours{font-weight:650;font-size:14px;color:var(--brand);margin:0;}
 .hours-helper{font-size:12px;color:var(--accent);margin:2px 0 0;font-weight:600;}
+.tag{display:inline-block;font-size:10px;font-weight:700;background:#EBDCC6;color:#8A5518;padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:6px;letter-spacing:.03em;}
 .badge{display:inline-block;font-size:10px;font-weight:600;background:#DDE7D8;color:var(--brand);padding:2px 7px;border-radius:999px;vertical-align:middle;margin-left:6px;}
 .del{color:var(--danger);background:none;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:auto;padding:2px 0;}
 .empty{text-align:center;padding:38px 20px;background:var(--surface2);border:1px dashed var(--borderStrong);border-radius:14px;}
@@ -55,7 +56,7 @@ html,body{margin:0;padding:0;background:var(--bg);}
 .label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px;}
 .field{margin-bottom:16px;}
 .input{width:100%;background:var(--surface,#fff);border:1px solid var(--borderStrong);border-radius:11px;padding:11px 12px;font-size:15px;color:var(--ink,#141C17);outline:none;font-family:inherit;}
-.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,122,34,.18);}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,114,42,.18);}
 textarea.input{min-height:74px;resize:vertical;}
 .suffix{position:relative;}
 .suffix span{position:absolute;right:12px;top:11px;font-size:13px;color:var(--ink3);}
@@ -115,8 +116,8 @@ function defaults(){ return {
   customers:[], entries:[], invoices:[] }; }
 var state = load();
 var tab = "zeit";
-var invoiceView = null;     // Rechnungsobjekt oder null
-var modal = null;           // {kind, ...}
+var invoiceView = null;
+var modal = null;
 function load(){
   try{ var v=localStorage.getItem(KEY); if(v){ var p=JSON.parse(v);
     var d=defaults(); d.settings=Object.assign(d.settings,p.settings||{});
@@ -130,12 +131,14 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e
 function uid(){ return Math.random().toString(36).slice(2,10); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function eur(n){ return new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR"}).format(n||0); }
+function numFmt(n){ return (Math.round((n||0)*100)/100).toFixed(2).replace(".",","); }
 function fmtDate(iso){ if(!iso) return ""; var a=iso.split("-"); return a[2]+"."+a[1]+"."+a[0]; }
 function hoursBetween(s,e){ if(!s||!e) return 0; var a=s.split(":").map(Number), b=e.split(":").map(Number);
   var m=b[0]*60+b[1]-(a[0]*60+a[1]); if(m<0)m+=1440; return Math.round(m/60*100)/100; }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function custName(id){ var c=state.customers.filter(function(c){return c.id===id;})[0]; return c?c.name:"(kein Kunde)"; }
-function lineSum(e){ return e.hoursOwn*e.rateOwn + e.hoursHelper*e.rateHelper; }
+function isFlat(e){ return e.type==="flat"; }
+function lineSum(e){ if(isFlat(e)) return (e.qty||0)*(e.unitPrice||0); return e.hoursOwn*e.rateOwn + e.hoursHelper*e.rateHelper; }
 var toastTimer=null;
 function toast(msg){ var t=document.getElementById("toast"); if(!t){ t=document.createElement("div"); t.id="toast"; t.className="toast"; document.body.appendChild(t);} t.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(function(){ if(t)t.remove(); },2200); }
 
@@ -145,7 +148,7 @@ var ICON={
   kunden:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   rechnungen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
   einstellungen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  hammer:'<svg viewBox="0 0 24 24" fill="none" stroke="#1F3B2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="21" height="21"><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg>',
+  hammer:'<svg viewBox="0 0 24 24" fill="none" stroke="#204632" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="21" height="21"><path d="M15 12l-8.5 8.5a2.12 2.12 0 1 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg>',
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:-2px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
 };
 
@@ -172,19 +175,25 @@ function render(){
 }
 
 function viewZeit(){
-  var h='<div class="row-head"><h2 class="h2">Arbeitszeiten</h2><button class="fab" data-act="newEntry">+</button></div>';
-  if(state.entries.length===0) return h+empty("kunden","Noch keine Zeit erfasst","Trag deinen ersten Arbeitseinsatz ein — Datum, Kunde, Dauer.");
+  var h='<div class="row-head"><h2 class="h2">Einträge</h2><button class="fab" data-act="newEntry">+</button></div>';
+  if(state.entries.length===0) return h+empty("zeit","Noch nichts erfasst","Trag deinen ersten Arbeitseinsatz oder eine Pauschale ein.");
   var sorted=state.entries.slice().sort(function(a,b){return a.date<b.date?1:-1;});
   var groups={}; sorted.forEach(function(e){ var k=e.date.slice(0,7); (groups[k]=groups[k]||[]).push(e); });
   Object.keys(groups).forEach(function(m){
     var d=new Date(m+"-01");
     h+='<div style="margin-bottom:20px"><p class="month">'+d.toLocaleDateString("de-DE",{month:"long",year:"numeric"})+'</p><div class="card">';
     groups[m].forEach(function(e){
+      var right;
+      if(isFlat(e)){
+        right='<p class="hours num">'+eur(lineSum(e))+'</p>'+((e.qty&&e.qty!==1)?'<p class="meta num">'+numFmt(e.qty)+' × '+eur(e.unitPrice)+'</p>':'');
+      } else {
+        right='<p class="hours num">'+e.hoursOwn.toFixed(2)+' h</p>'
+          +(e.hoursHelper>0?'<p class="hours-helper num">+'+e.hoursHelper.toFixed(2)+' h ('+esc(state.settings.sohnName)+')</p>':'');
+      }
       h+='<div class="item"><button style="text-align:left;flex:1;background:none;border:none;padding:0;cursor:pointer" data-act="editEntry" data-id="'+e.id+'">'
-        +'<p class="name">'+esc(custName(e.customerId))+(e.invoiceId?'<span class="badge">abgerechnet</span>':'')+'</p>'
+        +'<p class="name">'+esc(custName(e.customerId))+(isFlat(e)?'<span class="tag">Pauschale</span>':'')+(e.invoiceId?'<span class="badge">abgerechnet</span>':'')+'</p>'
         +'<p class="desc">'+esc(e.description||"—")+'</p><p class="meta">'+fmtDate(e.date)+'</p></button>'
-        +'<div style="text-align:right;margin-left:8px;flex-shrink:0"><p class="hours num">'+e.hoursOwn.toFixed(2)+' h</p>'
-        +(e.hoursHelper>0?'<p class="hours-helper num">+'+e.hoursHelper.toFixed(2)+' h ('+esc(state.settings.sohnName)+')</p>':'')
+        +'<div style="text-align:right;margin-left:8px;flex-shrink:0">'+right
         +(!e.invoiceId?'<button class="del" data-act="delEntry" data-id="'+e.id+'">'+ICON.trash+' löschen</button>':'')
         +'</div></div>';
     });
@@ -194,7 +203,7 @@ function viewZeit(){
 }
 function viewKunden(){
   var h='<div class="row-head"><h2 class="h2">Kunden</h2><button class="fab" data-act="newCustomer">+</button></div>';
-  if(state.customers.length===0) return h+empty("kunden","Noch keine Kunden","Leg deinen ersten Kunden an, um Zeiten zuzuordnen.");
+  if(state.customers.length===0) return h+empty("kunden","Noch keine Kunden","Leg deinen ersten Kunden an, um Einträge zuzuordnen.");
   state.customers.forEach(function(c){
     h+='<div class="card" style="padding:13px;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
       +'<button style="text-align:left;background:none;border:none;padding:0;cursor:pointer" data-act="editCustomer" data-id="'+c.id+'">'
@@ -205,8 +214,8 @@ function viewKunden(){
 }
 function viewRechnungen(){
   var h='<div class="row-head"><h2 class="h2">Rechnungen</h2><button class="fab" data-act="newInvoice">+</button></div>';
-  h+='<div style="margin-bottom:16px"><button class="btn-ghost" data-act="exportCsv">Alle Zeiten als CSV exportieren</button></div>';
-  if(state.invoices.length===0) h+=empty("rechnungen","Noch keine Rechnung","Wähle Kunde und Einträge, um eine Rechnung zu erstellen.");
+  h+='<div style="margin-bottom:16px"><button class="btn-ghost" data-act="exportCsv">Alle Einträge als CSV exportieren</button></div>';
+  if(state.invoices.length===0) h+=empty("rechnungen","Noch keine Rechnung","Wähle Kunde und Positionen, um eine Rechnung zu erstellen.");
   state.invoices.slice().reverse().forEach(function(inv){
     h+='<button class="inv-card" data-act="openInvoice" data-id="'+inv.id+'"><div><p class="name">'+esc(custName(inv.customerId))+'</p>'
       +'<p class="meta num">Rechnung '+inv.number+' · '+fmtDate(inv.createdAt)+'</p></div>'
@@ -226,9 +235,12 @@ function viewEinstellungen(){
   h+='<div class="field"><label class="label">Adresse</label><textarea class="input" id="set_adresse">'+esc(s.adresse)+'</textarea></div>';
   h+=f("Steuernummer","set_steuernummer",s.steuernummer);
   h+=f("IBAN","set_iban",s.iban);
-  h+='<div class="grid2">'+f("Dein Stundenlohn","set_rateOwn",s.rateOwn,"number","€/h")+f("Lohn Helfer","set_rateHelper",s.rateHelper,"number","€/h")+'</div>';
+  h+='<p class="month" style="margin-top:22px">Standard-Stundenlöhne</p>';
+  h+='<div class="grid2">'+f("Dein Stundenlohn","set_rateOwn",s.rateOwn,"number","€/h")+f("Lohn "+esc(s.sohnName),"set_rateHelper",s.rateHelper,"number","€/h")+'</div>';
+  h+='<p class="hint" style="margin-top:-4px">Diese Werte werden bei neuen Einträgen vorausgefüllt und sind dort jederzeit änderbar.</p>';
   h+=f("Name des Helfers","set_sohnName",s.sohnName);
-  h+='<div class="grid2">'+f("Rechnungspräfix","set_invoicePrefix",s.invoicePrefix)+f("Nächste Nr.","set_nextInvoiceNo",s.nextInvoiceNo,"number")+'</div>';
+  h+='<p class="month" style="margin-top:22px">Rechnungsnummer</p>';
+  h+='<div class="grid2">'+f("Präfix","set_invoicePrefix",s.invoicePrefix)+f("Nächste Nr.","set_nextInvoiceNo",s.nextInvoiceNo,"number")+'</div>';
   h+='<button class="btn btn-primary" data-act="saveSettings">Speichern</button>';
   h+='<p class="tip">Tipp fürs iPhone: über „Teilen" → „Zum Home-Bildschirm" bekommst du ein eigenes App-Symbol — ganz ohne App Store oder Entwickler-Account.</p>';
   return h;
@@ -255,18 +267,25 @@ function renderModal(){
 function closeModal(){ modal=null; var b=document.getElementById("sheet-bg"); if(b)b.remove(); }
 
 function entryForm(){
-  var m=modal, cs=state.customers;
+  var m=modal, cs=state.customers, flat=(m.etype==="flat");
   var custOpts = cs.map(function(c){ return '<option value="'+c.id+'"'+(c.id===m.customerId?" selected":"")+'>'+esc(c.name)+'</option>'; }).join("");
   var h="";
+  h+='<div class="seg"><button type="button" id="e_typeTime" class="'+(!flat?"on":"")+'">Arbeitszeit</button><button type="button" id="e_typeFlat" class="'+(flat?"on":"")+'">Pauschale</button></div>';
   h+='<div class="field"><label class="label">Datum</label><input class="input" type="date" id="e_date" value="'+m.date+'"></div>';
   h+='<div class="field"><label class="label">Kunde</label>'+(cs.length===0?'<p class="warn">Erst einen Kunden anlegen (Tab „Kunden").</p>':'<select class="input" id="e_cust">'+custOpts+'</select>')+'</div>';
-  h+='<div class="field"><label class="label">Tätigkeit</label><input class="input" id="e_desc" value="'+esc(m.description)+'" placeholder="z.B. Hecke schneiden, Terrasse pflastern…"></div>';
-  h+='<div class="seg"><button type="button" id="e_segTime" class="'+(!m.manual?"on":"")+'">Start / Ende</button><button type="button" id="e_segMan" class="'+(m.manual?"on":"")+'">Stunden direkt</button></div>';
-  h+='<div id="e_timewrap">'+timeInputs()+'</div>';
-  h+='<p class="hint">Ergibt <b class="num" id="e_hint">'+computedHours().toFixed(2)+' h</b></p>';
-  h+='<div class="field"><label class="label">Stundenlohn (du)</label><div class="suffix"><input class="input" type="number" step="0.5" id="e_rate" value="'+m.rateOwn+'"><span>€/h</span></div></div>';
-  h+='<label class="check"><input type="checkbox" id="e_helper"'+(m.helperOn?" checked":"")+'> '+esc(state.settings.sohnName)+' hat mitgeholfen</label>';
-  h+='<div id="e_helperwrap">'+(m.helperOn?helperInputs():"")+'</div>';
+  h+='<div class="field"><label class="label">'+(flat?"Bezeichnung":"Tätigkeit")+'</label><input class="input" id="e_desc" value="'+esc(m.description)+'" placeholder="'+(flat?"z.B. Schnittgut entsorgen, Anfahrt, Material":"z.B. Hecke schneiden, Terrasse pflastern")+'"></div>';
+  if(flat){
+    h+='<div class="grid2"><div class="field"><label class="label">Menge</label><input class="input" type="number" step="1" min="1" id="e_qty" value="'+m.qty+'"></div>'
+      +'<div class="field"><label class="label">Einzelpreis</label><div class="suffix"><input class="input" type="number" step="0.5" id="e_unit" value="'+m.unitPrice+'"><span>€</span></div></div></div>';
+    h+='<p class="hint">Summe: <b class="num" id="e_hint">'+eur((parseFloat(m.qty)||0)*(parseFloat(m.unitPrice)||0))+'</b></p>';
+  } else {
+    h+='<div class="seg"><button type="button" id="e_segTime" class="'+(!m.manual?"on":"")+'">Start / Ende</button><button type="button" id="e_segMan" class="'+(m.manual?"on":"")+'">Stunden direkt</button></div>';
+    h+='<div id="e_timewrap">'+timeInputs()+'</div>';
+    h+='<p class="hint">Ergibt <b class="num" id="e_hint">'+computedHours().toFixed(2)+' h</b></p>';
+    h+='<div class="field"><label class="label">Stundenlohn (du)</label><div class="suffix"><input class="input" type="number" step="0.5" id="e_rate" value="'+m.rateOwn+'"><span>€/h</span></div></div>';
+    h+='<label class="check"><input type="checkbox" id="e_helper"'+(m.helperOn?" checked":"")+'> '+esc(state.settings.sohnName)+' hat mitgeholfen</label>';
+    h+='<div id="e_helperwrap">'+(m.helperOn?helperInputs():"")+'</div>';
+  }
   h+='<button class="btn btn-accent" id="e_save"'+(cs.length===0?" disabled":"")+'>Speichern</button>';
   return h;
 }
@@ -283,28 +302,49 @@ function syncEntryFromInputs(){ var m=modal;
   if(g("e_date")) m.date=g("e_date").value;
   if(g("e_cust")) m.customerId=g("e_cust").value;
   if(g("e_desc")) m.description=g("e_desc").value;
-  if(g("e_rate")) m.rateOwn=g("e_rate").value;
-  if(m.manual){ if(g("e_hours")) m.manualHours=g("e_hours").value; }
-  else { if(g("e_start")) m.start=g("e_start").value; if(g("e_end")) m.end=g("e_end").value; }
-  if(m.helperOn){ if(g("e_hhours")) m.hoursHelper=g("e_hhours").value; if(g("e_hrate")) m.rateHelper=g("e_hrate").value; }
+  if(m.etype==="flat"){
+    if(g("e_qty")) m.qty=g("e_qty").value;
+    if(g("e_unit")) m.unitPrice=g("e_unit").value;
+  } else {
+    if(g("e_rate")) m.rateOwn=g("e_rate").value;
+    if(m.manual){ if(g("e_hours")) m.manualHours=g("e_hours").value; }
+    else { if(g("e_start")) m.start=g("e_start").value; if(g("e_end")) m.end=g("e_end").value; }
+    if(m.helperOn){ if(g("e_hhours")) m.hoursHelper=g("e_hhours").value; if(g("e_hrate")) m.rateHelper=g("e_hrate").value; }
+  }
 }
-function updateHint(){ var el=document.getElementById("e_hint"); if(el) el.textContent=computedHours().toFixed(2)+" h"; }
+function updateHint(){ var m=modal, el=document.getElementById("e_hint"); if(!el) return;
+  if(m.etype==="flat") el.textContent=eur((parseFloat(m.qty)||0)*(parseFloat(m.unitPrice)||0));
+  else el.textContent=computedHours().toFixed(2)+" h";
+}
 function wireEntryForm(){
   var g=function(id){ return document.getElementById(id); };
-  ["e_start","e_end","e_hours"].forEach(function(id){ var el=g(id); if(el) el.addEventListener("input",function(){ syncEntryFromInputs(); updateHint(); }); });
-  if(g("e_segTime")) g("e_segTime").addEventListener("click",function(){ syncEntryFromInputs(); modal.manual=false; g("e_segTime").className="on"; g("e_segMan").className=""; g("e_timewrap").innerHTML=timeInputs(); wireEntryForm(); updateHint(); });
-  if(g("e_segMan")) g("e_segMan").addEventListener("click",function(){ syncEntryFromInputs(); modal.manual=true; g("e_segMan").className="on"; g("e_segTime").className=""; g("e_timewrap").innerHTML=timeInputs(); wireEntryForm(); updateHint(); });
-  if(g("e_helper")) g("e_helper").addEventListener("change",function(){ syncEntryFromInputs(); modal.helperOn=g("e_helper").checked; g("e_helperwrap").innerHTML=modal.helperOn?helperInputs():""; wireEntryForm(); });
+  if(g("e_typeTime")) g("e_typeTime").addEventListener("click",function(){ syncEntryFromInputs(); modal.etype="time"; renderModal(); });
+  if(g("e_typeFlat")) g("e_typeFlat").addEventListener("click",function(){ syncEntryFromInputs(); modal.etype="flat"; renderModal(); });
+  if(modal.etype==="flat"){
+    ["e_qty","e_unit"].forEach(function(id){ var el=g(id); if(el) el.addEventListener("input",function(){ syncEntryFromInputs(); updateHint(); }); });
+  } else {
+    ["e_start","e_end","e_hours"].forEach(function(id){ var el=g(id); if(el) el.addEventListener("input",function(){ syncEntryFromInputs(); updateHint(); }); });
+    if(g("e_segTime")) g("e_segTime").addEventListener("click",function(){ syncEntryFromInputs(); modal.manual=false; g("e_segTime").className="on"; g("e_segMan").className=""; g("e_timewrap").innerHTML=timeInputs(); wireEntryForm(); updateHint(); });
+    if(g("e_segMan")) g("e_segMan").addEventListener("click",function(){ syncEntryFromInputs(); modal.manual=true; g("e_segMan").className="on"; g("e_segTime").className=""; g("e_timewrap").innerHTML=timeInputs(); wireEntryForm(); updateHint(); });
+    if(g("e_helper")) g("e_helper").addEventListener("change",function(){ syncEntryFromInputs(); modal.helperOn=g("e_helper").checked; if(modal.helperOn && (!modal.hoursHelper || parseFloat(modal.hoursHelper)===0)) modal.hoursHelper=computedHours(); g("e_helperwrap").innerHTML=modal.helperOn?helperInputs():""; wireEntryForm(); });
+  }
   if(g("e_save")) g("e_save").addEventListener("click",saveEntry);
 }
 function saveEntry(){
   syncEntryFromInputs(); var m=modal;
   if(!m.customerId){ toast("Bitte Kunde wählen"); return; }
-  var entry={ id:m.id||uid(), date:m.date, customerId:m.customerId, description:m.description,
-    start:m.manual?null:m.start, end:m.manual?null:m.end, manual:!!m.manual,
-    hoursOwn:computedHours(), rateOwn:parseFloat(m.rateOwn)||0,
-    hoursHelper:m.helperOn?(parseFloat(m.hoursHelper)||0):0, rateHelper:parseFloat(m.rateHelper)||0,
-    invoiceId:m.invoiceId||null };
+  var entry;
+  if(m.etype==="flat"){
+    entry={ id:m.id||uid(), type:"flat", date:m.date, customerId:m.customerId, description:m.description,
+      qty:parseFloat(m.qty)||0, unitPrice:parseFloat(m.unitPrice)||0, invoiceId:m.invoiceId||null };
+    if(!entry.description){ toast("Bitte Bezeichnung angeben"); return; }
+  } else {
+    entry={ id:m.id||uid(), type:"time", date:m.date, customerId:m.customerId, description:m.description,
+      start:m.manual?null:m.start, end:m.manual?null:m.end, manual:!!m.manual,
+      hoursOwn:computedHours(), rateOwn:parseFloat(m.rateOwn)||0,
+      hoursHelper:m.helperOn?(parseFloat(m.hoursHelper)||0):0, rateHelper:parseFloat(m.rateHelper)||0,
+      invoiceId:m.invoiceId||null };
+  }
   var exists=state.entries.some(function(e){return e.id===entry.id;});
   if(exists) state.entries=state.entries.map(function(e){return e.id===entry.id?entry:e;});
   else state.entries.push(entry);
@@ -333,19 +373,20 @@ function invoiceForm(){
   var custOpts=cs.map(function(c){return '<option value="'+c.id+'"'+(c.id===m.customerId?" selected":"")+'>'+esc(c.name)+'</option>';}).join("");
   var open=state.entries.filter(function(e){return e.customerId===m.customerId && !e.invoiceId;});
   var h='<div class="field"><label class="label">Kunde</label><select class="input" id="i_cust">'+custOpts+'</select></div>';
-  if(open.length===0){ h+='<p class="warn">Keine offenen Einträge für diesen Kunden.</p>'; }
+  if(open.length===0){ h+='<p class="warn">Keine offenen Positionen für diesen Kunden.</p>'; }
   else{
-    h+='<p class="month">Offene Einträge</p>';
+    h+='<p class="month">Offene Positionen</p>';
     open.forEach(function(e){
       var checked = m.sel[e.id]!==false;
+      var sub = isFlat(e) ? (numFmt(e.qty)+' × '+eur(e.unitPrice)) : (e.hoursOwn.toFixed(2)+' h'+(e.hoursHelper>0?" + "+e.hoursHelper.toFixed(2)+" h Helfer":""));
       h+='<label class="selrow"><input type="checkbox" data-sel="'+e.id+'"'+(checked?" checked":"")+'>'
-        +'<div style="flex:1"><p class="name">'+fmtDate(e.date)+' — '+esc(e.description||"Arbeitszeit")+'</p>'
-        +'<p class="meta num">'+e.hoursOwn.toFixed(2)+' h'+(e.hoursHelper>0?" + "+e.hoursHelper.toFixed(2)+" h Helfer":"")+'</p></div>'
+        +'<div style="flex:1"><p class="name">'+fmtDate(e.date)+' — '+esc(e.description||(isFlat(e)?"Pauschale":"Arbeitszeit"))+(isFlat(e)?'<span class="tag">Pauschale</span>':'')+'</p>'
+        +'<p class="meta num">'+sub+'</p></div>'
         +'<p class="num" style="font-size:13.5px">'+eur(lineSum(e))+'</p></label>';
     });
   }
   var total=open.reduce(function(s,e){ return s + (m.sel[e.id]!==false ? lineSum(e):0); },0);
-  h+='<div class="total"><span style="font-weight:650">Gesamt</span><span class="num" id="i_total" style="font-weight:700;font-size:18px;color:#1F3B2C">'+eur(total)+'</span></div>';
+  h+='<div class="total"><span style="font-weight:650">Gesamt</span><span class="num" id="i_total" style="font-weight:700;font-size:18px;color:#204632">'+eur(total)+'</span></div>';
   h+='<div style="margin-top:14px"><button class="btn btn-accent" data-act="createInvoice"'+(open.length===0?" disabled":"")+'>Rechnung erstellen</button></div>';
   return h;
 }
@@ -357,11 +398,15 @@ function recalcInvoiceTotal(){
 function createInvoice(){
   var m=modal; var open=state.entries.filter(function(e){return e.customerId===m.customerId && !e.invoiceId;});
   var chosen=open.filter(function(e){ return m.sel[e.id]!==false; });
-  if(chosen.length===0){ toast("Keine Einträge gewählt"); return; }
+  if(chosen.length===0){ toast("Keine Positionen gewählt"); return; }
   var number=state.settings.invoicePrefix+"-"+String(state.settings.nextInvoiceNo).padStart(3,"0");
   var total=chosen.reduce(function(s,e){return s+lineSum(e);},0);
   var inv={ id:uid(), number:number, customerId:m.customerId, createdAt:todayISO(),
-    lines:chosen.map(function(e){ return {date:e.date,description:e.description,hoursOwn:e.hoursOwn,rateOwn:e.rateOwn,hoursHelper:e.hoursHelper,rateHelper:e.rateHelper}; }),
+    lines:chosen.map(function(e){
+      return isFlat(e)
+        ? {type:"flat", date:e.date, description:e.description, qty:e.qty, unitPrice:e.unitPrice}
+        : {type:"time", date:e.date, description:e.description, hoursOwn:e.hoursOwn, rateOwn:e.rateOwn, hoursHelper:e.hoursHelper, rateHelper:e.rateHelper};
+    }),
     total:total };
   var chosenIds={}; chosen.forEach(function(e){chosenIds[e.id]=1;});
   state.entries=state.entries.map(function(e){ return chosenIds[e.id]?Object.assign({},e,{invoiceId:inv.id}):e; });
@@ -374,15 +419,19 @@ function renderInvoice(){
   var inv=invoiceView, s=state.settings, c=state.customers.filter(function(x){return x.id===inv.customerId;})[0];
   var rows="";
   inv.lines.forEach(function(l){
-    rows+='<tr><td>'+fmtDate(l.date)+'</td><td>'+esc(l.description||"Arbeitszeit")+'</td><td class="r num">'+l.hoursOwn.toFixed(2)+'</td><td class="r num">'+eur(l.rateOwn)+'</td><td class="r num">'+eur(l.hoursOwn*l.rateOwn)+'</td></tr>';
-    if(l.hoursHelper>0) rows+='<tr style="color:#666"><td></td><td style="font-style:italic">davon Helfer ('+esc(s.sohnName)+')</td><td class="r num">'+l.hoursHelper.toFixed(2)+'</td><td class="r num">'+eur(l.rateHelper)+'</td><td class="r num">'+eur(l.hoursHelper*l.rateHelper)+'</td></tr>';
+    if(l.type==="flat"){
+      rows+='<tr><td>'+fmtDate(l.date)+'</td><td>'+esc(l.description||"Pauschale")+'</td><td class="r num">'+numFmt(l.qty)+'</td><td class="r num">'+eur(l.unitPrice)+'</td><td class="r num">'+eur(l.qty*l.unitPrice)+'</td></tr>';
+    } else {
+      rows+='<tr><td>'+fmtDate(l.date)+'</td><td>'+esc(l.description||"Arbeitszeit")+'</td><td class="r num">'+numFmt(l.hoursOwn)+'</td><td class="r num">'+eur(l.rateOwn)+'</td><td class="r num">'+eur(l.hoursOwn*l.rateOwn)+'</td></tr>';
+      if(l.hoursHelper>0) rows+='<tr style="color:#666"><td></td><td style="font-style:italic">davon Helfer ('+esc(s.sohnName)+')</td><td class="r num">'+numFmt(l.hoursHelper)+'</td><td class="r num">'+eur(l.rateHelper)+'</td><td class="r num">'+eur(l.hoursHelper*l.rateHelper)+'</td></tr>';
+    }
   });
   var h='<div class="invbar noprint"><button class="back" data-act="closeInvoice">&#8249; Zurück</button><button class="print" data-act="printInvoice">Als PDF speichern</button></div>';
   h+='<div id="print" class="paper">';
   h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px"><div><h4>'+esc(s.firma||s.inhaber)+'</h4><p style="margin:4px 0 0;font-size:13px;white-space:pre-line;color:#444">'+esc(s.adresse)+'</p></div>'
     +'<div style="text-align:right;font-size:13px"><p class="num" style="margin:0;font-weight:700;font-size:15px">Rechnung '+inv.number+'</p><p style="margin:3px 0 0;color:#444">Datum: '+fmtDate(inv.createdAt)+'</p></div></div>';
   h+='<div style="margin-bottom:22px"><p style="font-size:11px;text-transform:uppercase;color:#888;margin:0 0 3px">Rechnung an</p><p style="margin:0;font-weight:600">'+esc(c?c.name:"")+'</p><p style="margin:2px 0 0;font-size:13px;white-space:pre-line;color:#444">'+esc(c?c.address:"")+'</p></div>';
-  h+='<table><thead><tr><th>Datum</th><th>Leistung</th><th class="r">Std.</th><th class="r">Satz</th><th class="r">Betrag</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  h+='<table><thead><tr><th>Datum</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Betrag</th></tr></thead><tbody>'+rows+'</tbody></table>';
   h+='<div style="display:flex;justify-content:flex-end;margin-bottom:26px"><div style="width:220px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;border-top:2px solid #1a1a1a;padding-top:8px"><span>Gesamtbetrag</span><span class="num">'+eur(inv.total)+'</span></div></div></div>';
   h+='<p style="font-size:12px;color:#666;margin-bottom:22px">Gemäß § 19 UStG wird keine Umsatzsteuer berechnet und ausgewiesen (Kleinunternehmerregelung).</p>';
   h+='<div style="font-size:12px;color:#666;border-top:1px solid #eee;padding-top:14px;line-height:1.6">'
@@ -397,13 +446,18 @@ function renderInvoice(){
 function exportCsv(){
   if(state.entries.length===0){ toast("Keine Daten zum Export"); return; }
   var sep=";";
-  var head=["Datum","Kunde","Tätigkeit","Stunden (du)","Satz du","Stunden ("+state.settings.sohnName+")","Satz Helfer","Summe","Abgerechnet"];
+  var head=["Datum","Kunde","Art","Leistung","Std (du)","Satz du","Std ("+state.settings.sohnName+")","Satz "+state.settings.sohnName,"Menge","Einzelpreis","Summe","Abgerechnet"];
   var lines=[head.join(sep)];
   state.entries.forEach(function(e){
-    var row=[fmtDate(e.date), custName(e.customerId), (e.description||""),
-      String(e.hoursOwn).replace(".",","), String(e.rateOwn).replace(".",","),
-      String(e.hoursHelper).replace(".",","), String(e.rateHelper).replace(".",","),
-      lineSum(e).toFixed(2).replace(".",","), e.invoiceId?"ja":"nein"];
+    var row;
+    if(isFlat(e)){
+      row=[fmtDate(e.date), custName(e.customerId), "Pauschale", (e.description||""), "", "", "", "",
+        numFmt(e.qty), numFmt(e.unitPrice), numFmt(lineSum(e)), e.invoiceId?"ja":"nein"];
+    } else {
+      row=[fmtDate(e.date), custName(e.customerId), "Arbeitszeit", (e.description||""),
+        numFmt(e.hoursOwn), numFmt(e.rateOwn), numFmt(e.hoursHelper), numFmt(e.rateHelper),
+        "", "", numFmt(lineSum(e)), e.invoiceId?"ja":"nein"];
+    }
     row=row.map(function(v){ v=String(v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; });
     lines.push(row.join(sep));
   });
@@ -421,8 +475,12 @@ document.addEventListener("click",function(ev){
   var t=ev.target.closest("[data-act]"); if(!t) return;
   var act=t.getAttribute("data-act"), id=t.getAttribute("data-id");
   if(act==="tab"){ tab=t.getAttribute("data-v"); render(); }
-  else if(act==="newEntry"){ modal={kind:"entry",title:"Neuer Eintrag",id:null,date:todayISO(),customerId:(state.customers[0]||{}).id||"",description:"",start:"08:00",end:"12:00",manual:false,manualHours:hoursBetween("08:00","12:00"),rateOwn:state.settings.rateOwn,helperOn:false,hoursHelper:hoursBetween("08:00","12:00"),rateHelper:state.settings.rateHelper,invoiceId:null}; renderModal(); }
-  else if(act==="editEntry"){ var e=state.entries.filter(function(x){return x.id===id;})[0]; if(e.invoiceId){ toast("Abgerechnet – nicht bearbeitbar"); return; } modal={kind:"entry",title:"Eintrag bearbeiten",id:e.id,date:e.date,customerId:e.customerId,description:e.description,start:e.start||"08:00",end:e.end||"12:00",manual:!!e.manual,manualHours:e.hoursOwn,rateOwn:e.rateOwn,helperOn:e.hoursHelper>0,hoursHelper:e.hoursHelper,rateHelper:e.rateHelper,invoiceId:e.invoiceId}; renderModal(); }
+  else if(act==="newEntry"){ modal={kind:"entry",title:"Neuer Eintrag",id:null,etype:"time",date:todayISO(),customerId:(state.customers[0]||{}).id||"",description:"",start:"08:00",end:"12:00",manual:false,manualHours:hoursBetween("08:00","12:00"),rateOwn:state.settings.rateOwn,helperOn:false,hoursHelper:0,rateHelper:state.settings.rateHelper,qty:1,unitPrice:0,invoiceId:null}; renderModal(); }
+  else if(act==="editEntry"){ var e=state.entries.filter(function(x){return x.id===id;})[0]; if(e.invoiceId){ toast("Abgerechnet – nicht bearbeitbar"); return; }
+    modal={kind:"entry",title:"Eintrag bearbeiten",id:e.id,etype:isFlat(e)?"flat":"time",date:e.date,customerId:e.customerId,description:e.description,
+      start:e.start||"08:00",end:e.end||"12:00",manual:!!e.manual,manualHours:e.hoursOwn||0,rateOwn:e.rateOwn!=null?e.rateOwn:state.settings.rateOwn,
+      helperOn:(e.hoursHelper||0)>0,hoursHelper:e.hoursHelper||0,rateHelper:e.rateHelper!=null?e.rateHelper:state.settings.rateHelper,
+      qty:e.qty!=null?e.qty:1,unitPrice:e.unitPrice!=null?e.unitPrice:0,invoiceId:e.invoiceId}; renderModal(); }
   else if(act==="delEntry"){ var d=state.entries.filter(function(x){return x.id===id;})[0]; if(d&&d.invoiceId){ toast("Abgerechnet – nicht löschbar"); return; } state.entries=state.entries.filter(function(x){return x.id!==id;}); save(); render(); toast("Gelöscht"); }
   else if(act==="newCustomer"){ modal={kind:"customer",title:"Neuer Kunde",id:null,name:"",address:""}; renderModal(); }
   else if(act==="editCustomer"){ var c=state.customers.filter(function(x){return x.id===id;})[0]; modal={kind:"customer",title:"Kunde bearbeiten",id:c.id,name:c.name,address:c.address}; renderModal(); }
