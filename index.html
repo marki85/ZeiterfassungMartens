@@ -7,15 +7,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Werkzeit — Martens</title>
 <style>
-:root { color-scheme: light only; }
+:root {
+  color-scheme: light only;
+  --bg:#EEF1EC; --surface:#FFFFFF; --surface2:#F6F8F4;
+  --ink:#141C17; --ink2:#4E5852; --ink3:#8A938C;
+  --brand:#204632; --onbrand:#EFF4EC;
+  --accent:#B8722A; --onaccent:#FFFFFF;
+  --danger:#A5392C; --border:#E1E5DF; --borderStrong:#C6CCC4;
+}
 * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-html,body{margin:0;padding:0;}
+html,body{margin:0;padding:0;background:var(--bg);}
 .wz{
-  --bg:#EDEFEA; --surface:#FFFFFF; --surface2:#F7F8F5;
-  --ink:#16201A; --ink2:#525C55; --ink3:#8B938B;
-  --brand:#1F3B2C; --onbrand:#F1F5EE;
-  --accent:#C07A22; --onaccent:#FFFFFF;
-  --danger:#A5392C; --border:#DFE3DD; --borderStrong:#C7CDC4;
   background:var(--bg); color:var(--ink); min-height:100vh; padding-bottom:88px;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
@@ -52,7 +54,7 @@ html,body{margin:0;padding:0;}
 .btn-ghost{width:100%;background:none;border:1.5px solid var(--brand);color:var(--brand);border-radius:12px;font-weight:600;font-size:14px;padding:11px;cursor:pointer;}
 .label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px;}
 .field{margin-bottom:16px;}
-.input{width:100%;background:var(--surface);border:1px solid var(--borderStrong);border-radius:11px;padding:11px 12px;font-size:15px;color:var(--ink);outline:none;font-family:inherit;}
+.input{width:100%;background:var(--surface,#fff);border:1px solid var(--borderStrong);border-radius:11px;padding:11px 12px;font-size:15px;color:var(--ink,#141C17);outline:none;font-family:inherit;}
 .input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,122,34,.18);}
 textarea.input{min-height:74px;resize:vertical;}
 .suffix{position:relative;}
@@ -70,8 +72,8 @@ textarea.input{min-height:74px;resize:vertical;}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 0 13px;font-size:11px;font-weight:600;background:none;border:none;color:#8FA089;cursor:pointer;}
 .nav button.on{color:var(--accent);}
 .nav svg{width:20px;height:20px;}
-.sheet-bg{position:fixed;inset:0;z-index:50;background:rgba(10,18,13,.5);display:flex;align-items:flex-end;justify-content:center;}
-.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:20px 20px 0 0;max-height:88vh;overflow-y:auto;padding:20px 18px 30px;}
+.sheet-bg{position:fixed;inset:0;z-index:50;background:rgba(12,20,15,.62);display:flex;align-items:flex-end;justify-content:center;}
+.sheet{background:var(--bg,#EEF1EC);width:100%;max-width:560px;border-radius:20px 20px 0 0;max-height:88vh;overflow-y:auto;padding:20px 18px 30px;box-shadow:0 -8px 30px rgba(0,0,0,.25);}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .sheet-head h3{margin:0;font-weight:650;font-size:18px;color:var(--brand);}
 .x{background:none;border:none;color:var(--ink2);cursor:pointer;font-size:20px;line-height:1;padding:4px;}
